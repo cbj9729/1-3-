@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORBITRACK — 로켓 궤도 및 태양계 시뮬레이터</title>
+<style>
+  :root{
+    --bg-deep:#05070d; --bg-panel:#0c1120; --bg-panel-2:#121a30; --bg-input:#0a0f1d;
+    --border:#212b48; --border-soft:#1a2340;
+    --text-primary:#eef1f8; --text-muted:#7c88a8; --text-dim:#4d5678;
+    --accent-amber:#ffa94d; --accent-cyan:#5ecbe8; --accent-danger:#ff5470;
+    --accent-success:#7ee787; --accent-purple:#b18aff;
+    --mono: 'SFMono-Regular','Consolas','Menlo','Cascadia Mono',monospace;
+    --sans: 'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; padding:0; height:100%; background:var(--bg-deep); color:var(--text-primary); font-family:var(--sans); overflow:hidden; }
+  #app{ display:flex; width:100vw; height:100vh; }
+
+  #sidebar{ width:380px; min-width:380px; background:linear-gradient(180deg, var(--bg-panel) 0%, #090d19 100%); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; }
+  #sidebar::-webkit-scrollbar{ width:8px; }
+  #sidebar::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+
+  .brand{ padding:22px 22px 16px 22px; border-bottom:1px solid var(--border); }
+  .brand .mark{ display:flex; align-items:center; gap:10px; }
+  .brand .mark .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 10px var(--accent-amber); animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .brand h1{ font-family:var(--mono); font-size:15px; letter-spacing:.14em; margin:0; font-weight:700; }
+  .brand p{ margin:6px 0 0 0; font-size:11.5px; color:var(--text-muted); line-height:1.5; }
+
+  .section{ padding:18px 22px; border-bottom:1px solid var(--border-soft); }
+  .section-title{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-dim); margin:0 0 14px 0; display:flex; align-items:center; gap:8px; }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--border-soft); }
+
+  .planet-select{ display:flex; gap:8px; }
+  .planet-btn{ flex:1; padding:10px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; color:var(--text-muted); cursor:pointer; font-family:var(--sans); font-size:12.5px; display:flex; flex-direction:column; align-items:center; gap:6px; transition:.15s ease; }
+  .planet-btn .swatch{ width:20px; height:20px; border-radius:50%; }
+  .planet-btn.active{ border-color:var(--accent-cyan); color:var(--text-primary); background:var(--bg-panel-2); box-shadow:0 0 0 1px var(--accent-cyan) inset, 0 0 14px rgba(94,203,232,.15); }
+  .planet-btn:hover:not(.active){ border-color:#33406a; color:var(--text-primary); }
+
+  .field{ margin-bottom:18px; }
+  .field:last-child{ margin-bottom:0; }
+  .field-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .field-label{ font-size:12.5px; color:var(--text-primary); font-weight:600; }
+  .field-value{ font-family:var(--mono); font-size:12.5px; color:var(--accent-cyan); background:rgba(94,203,232,.08); padding:2px 7px; border-radius:5px; min-width:70px; text-align:right; }
+  input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; height:4px; background:var(--border); border-radius:3px; outline:none; margin:0; }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%; background:var(--accent-amber); border:2px solid #0c1120; box-shadow:0 0 8px rgba(255,169,77,.6); cursor:pointer; margin-top:-1px; }
+  input[type="range"]::-moz-range-thumb{ width:13px; height:13px; border-radius:50%; background:var(--accent-amber); border:2px solid #0c1120; box-shadow:0 0 8px rgba(255,169,77,.6); cursor:pointer; }
+  .field-note{ font-size:10.5px; color:var(--text-dim); margin-top:6px; line-height:1.5; }
+
+  .btn-row{ display:flex; gap:10px; }
+  .btn{ flex:1; padding:12px 10px; border-radius:9px; border:1px solid var(--border); font-family:var(--mono); font-size:12px; letter-spacing:.05em; cursor:pointer; text-transform:uppercase; transition:.15s ease; background:var(--bg-input); color:var(--text-primary); }
+  .btn-primary{ background:linear-gradient(180deg,#ffb35c,#ff9a3d); border-color:#ff9a3d; color:#1a1000; font-weight:700; }
+  .btn-primary:hover{ filter:brightness(1.08); }
+  .btn-primary.is-running{ background:linear-gradient(180deg,#3a4770,#28335c); border-color:#3a4770; color:var(--text-primary); }
+  .btn-ghost:hover{ border-color:#33406a; }
+  .btn-small{ padding:8px 10px; font-size:10.5px; }
+  .btn-accent{ background:linear-gradient(180deg,#c4a3ff,#9d6bff); border-color:#9d6bff; color:#180a30; font-weight:700; }
+  .btn-accent:hover{ filter:brightness(1.08); }
+
+  .status-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .status-card{ background:var(--bg-input); border:1px solid var(--border-soft); border-radius:9px; padding:10px 12px; }
+  .status-card.wide{ grid-column:1 / -1; }
+  .status-card .k{ font-size:10px; color:var(--text-dim); letter-spacing:.06em; text-transform:uppercase; margin-bottom:5px; }
+  .status-card .v{ font-family:var(--mono); font-size:14px; color:var(--text-primary); font-weight:600; }
+  .status-card .v.accent{ color:var(--accent-cyan); }
+  .status-card .u{ font-size:10px; color:var(--text-muted); margin-left:3px; }
+
+  .flight-state{ grid-column:1 / -1; display:flex; align-items:center; gap:10px; padding:12px 14px; }
+  .flight-state .led{ width:9px; height:9px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
+  .flight-state.state-idle .led{ background:var(--text-dim); }
+  .flight-state.state-paused .led{ background:var(--accent-amber); }
+  .flight-state.state-flying .led{ background:var(--accent-cyan); box-shadow:0 0 8px var(--accent-cyan); animation:pulse 1.2s ease-in-out infinite; }
+  .flight-state.state-crash .led{ background:var(--accent-danger); box-shadow:0 0 8px var(--accent-danger); }
+  .flight-state.state-escape .led{ background:var(--accent-success); box-shadow:0 0 8px var(--accent-success); animation:pulse .8s ease-in-out infinite; }
+  .flight-state.state-landed .led{ background:var(--accent-success); box-shadow:0 0 8px var(--accent-success); }
+  .flight-state .label{ font-family:var(--mono); font-size:12.5px; font-weight:700; letter-spacing:.02em; }
+
+  .orbit-tag{ margin-top:10px; font-size:11.5px; color:var(--text-muted); background:var(--bg-input); border:1px solid var(--border-soft); border-radius:8px; padding:9px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+  .orbit-tag b{ color:var(--accent-cyan); font-family:var(--mono); font-weight:700; }
+
+  .event-log{ list-style:none; margin:0; padding:0; max-height:170px; overflow-y:auto; }
+  .event-log::-webkit-scrollbar{ width:6px; }
+  .event-log::-webkit-scrollbar-thumb{ background:var(--border); border-radius:3px; }
+  .event-log li{ display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:11px; line-height:1.5; }
+  .event-log li:last-child{ border-bottom:none; }
+  .event-log .et{ font-family:var(--mono); color:var(--accent-amber); flex-shrink:0; }
+  .event-log .em{ color:var(--text-muted); }
+  .event-log .empty{ color:var(--text-dim); font-style:normal; }
+
+  .target-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px; }
+  .target-btn{ padding:8px 4px; background:var(--bg-input); border:1px solid var(--border); border-radius:7px; color:var(--text-muted); cursor:pointer; font-size:11px; display:flex; flex-direction:column; align-items:center; gap:5px; transition:.15s ease; }
+  .target-btn .swatch{ width:14px; height:14px; border-radius:50%; }
+  .target-btn.active{ border-color:var(--accent-purple); color:var(--text-primary); background:var(--bg-panel-2); box-shadow:0 0 0 1px var(--accent-purple) inset; }
+  .target-btn:hover:not(.active){ border-color:#33406a; color:var(--text-primary); }
+
+  .guide-box{ background:var(--bg-input); border:1px solid var(--border-soft); border-radius:9px; padding:12px 14px; font-size:11.5px; color:var(--text-muted); }
+  .guide-box .row{ display:flex; justify-content:space-between; padding:4px 0; gap:8px; }
+  .guide-box .row b{ color:var(--accent-purple); font-family:var(--mono); text-align:right; }
+  .guide-box .note{ margin-top:8px; padding-top:8px; border-top:1px solid var(--border-soft); font-size:10.5px; color:var(--text-dim); line-height:1.5; }
+  .guide-box .placeholder{ color:var(--text-dim); }
+  .guide-box .ok{ color:var(--accent-success); }
+
+  #stage{ flex:1; position:relative; overflow:hidden; background:var(--bg-deep); }
+  #simCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
+  #simCanvas.dragging{ cursor:grabbing; }
+
+  .hud-corner{ position:absolute; width:26px; height:26px; border-color:rgba(94,203,232,.55); border-style:solid; border-width:0; pointer-events:none; }
+  .hud-tl{ top:16px; left:16px; border-top-width:2px; border-left-width:2px; }
+  .hud-tr{ top:16px; right:16px; border-top-width:2px; border-right-width:2px; }
+  .hud-bl{ bottom:16px; left:16px; border-bottom-width:2px; border-left-width:2px; }
+  .hud-br{ bottom:16px; right:16px; border-bottom-width:2px; border-right-width:2px; }
+
+  .hud-title{ position:absolute; top:22px; left:56px; font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--text-muted); text-transform:uppercase; pointer-events:none; }
+  .hud-title span{ color:var(--accent-cyan); }
+
+  .hud-timescale{ position:absolute; top:16px; right:56px; display:flex; align-items:center; gap:10px; background:rgba(12,17,32,.72); border:1px solid var(--border-soft); border-radius:20px; padding:6px 14px 6px 12px; backdrop-filter:blur(4px); }
+  .hud-timescale label{ font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:.08em; }
+  .hud-timescale input[type=range]{ width:110px; }
+  .hud-timescale .tv{ font-family:var(--mono); font-size:11px; color:var(--accent-amber); min-width:56px; }
+
+  .hud-clock{ position:absolute; bottom:18px; left:56px; font-family:var(--mono); font-size:12px; color:var(--text-muted); background:rgba(12,17,32,.72); border:1px solid var(--border-soft); padding:7px 12px; border-radius:8px; backdrop-filter:blur(4px); }
+  .hud-clock b{ color:var(--text-primary); }
+
+  .hud-legend{ position:absolute; bottom:18px; right:56px; display:flex; gap:14px; background:rgba(12,17,32,.72); border:1px solid var(--border-soft); padding:8px 14px; border-radius:8px; backdrop-filter:blur(4px); font-size:10.5px; color:var(--text-muted); }
+  .hud-legend .li{ display:flex; align-items:center; gap:6px; }
+  .hud-legend .sw{ width:9px; height:9px; border-radius:50%; }
+
+  .hud-zoom{ position:absolute; top:50%; right:16px; transform:translateY(-50%); display:flex; flex-direction:column; gap:1px; background:rgba(12,17,32,.78); border:1px solid var(--border-soft); border-radius:10px; overflow:hidden; backdrop-filter:blur(4px); }
+  .hud-zoom button{ width:34px; height:34px; background:transparent; border:none; color:var(--text-primary); font-family:var(--mono); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.12s ease; }
+  .hud-zoom button:hover{ background:rgba(94,203,232,.15); color:var(--accent-cyan); }
+  .hud-zoom .sep{ height:1px; background:var(--border-soft); }
+  .hud-zoom button.active{ color:var(--accent-cyan); background:rgba(94,203,232,.15); }
+
+  .hud-banner{ position:absolute; top:70px; left:50%; transform:translateX(-50%) translateY(-8px); background:rgba(12,17,32,.88); border:1px solid var(--accent-success); color:var(--accent-success); font-family:var(--mono); font-size:13px; letter-spacing:.04em; padding:10px 20px; border-radius:10px; box-shadow:0 0 20px rgba(126,231,135,.25); opacity:0; pointer-events:none; transition:opacity .35s ease, transform .35s ease; white-space:nowrap; }
+  .hud-banner.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width: 880px){
+    #app{ flex-direction:column; }
+    #sidebar{ width:100%; min-width:0; max-height:56vh; border-right:none; border-bottom:1px solid var(--border); }
+    #stage{ flex:1; }
+    .hud-title, .hud-timescale, .hud-clock, .hud-legend{ display:none; }
+    .hud-zoom{ right:10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="mark"><div class="dot"></div><h1>ORBITRACK</h1></div>
+      <p>만유인력 기반 로켓 궤적 시뮬레이터 — 자동 조준으로 태양계 행성에 착륙하거나, 미사일 모드로 탄도 타격을 연습합니다.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">시뮬레이션 모드</div>
+      <div class="planet-select">
+        <button class="planet-btn active" id="mode-orbit">🚀 궤도 모드</button>
+        <button class="planet-btn" id="mode-missile">🎯 미사일 모드</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">발사 행성</div>
+      <div class="planet-select">
+        <button class="planet-btn active" id="btn-earth" data-planet="earth">
+          <span class="swatch" style="background:radial-gradient(circle at 32% 32%, #6fb4ff, #1a4d8f 70%);"></span>지구
+        </button>
+        <button class="planet-btn" id="btn-moon" data-planet="moon">
+          <span class="swatch" style="background:radial-gradient(circle at 32% 32%, #c9c9c9, #6b6b6b 70%);"></span>달
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">발사 파라미터</div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">초기 속력 (v₀)</span><span class="field-value" id="val-v0">2,000 m/s</span></div>
+        <input type="range" id="in-v0" min="500" max="15000" step="50" value="2000">
+      </div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">발사각 (θ, 국소 진행방향 기준)</span><span class="field-value" id="val-angle">45°</span></div>
+        <input type="range" id="in-angle" min="-90" max="90" step="1" value="45">
+        <div class="field-note">θ=0°는 발사 지점의 접선 방향, 90°는 바깥쪽(방사) 방향. φ=0°일 때 접선 방향이 행성의 실제 공전 방향과 일치합니다.</div>
+      </div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">발사 지점 (행성 둘레, φ)</span><span class="field-value" id="val-launchpos">0°</span></div>
+        <input type="range" id="in-launchpos" min="0" max="359" step="1" value="0">
+      </div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">초기 고도 (h₀)</span><span class="field-value" id="val-h0">0 km</span></div>
+        <input type="range" id="in-h0" min="0" max="2000" step="10" value="0">
+      </div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">로켓 질량 (m)</span><span class="field-value" id="val-mass">1,000 kg</span></div>
+        <input type="range" id="in-mass" min="100" max="10000" step="50" value="1000">
+        <div class="field-note">중력가속도는 로켓 질량과 무관합니다 (갈릴레이 등가원리).</div>
+      </div>
+    </div>
+
+    <div class="section" id="guide-section">
+      <div class="section-title">목표 행성 자동 조준</div>
+      <div class="target-grid" id="target-grid">
+        <button class="target-btn" data-target="mercury"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#cabba9,#7a6c5d);"></span>수성</button>
+        <button class="target-btn" data-target="venus"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#f0d6a0,#a9793a);"></span>금성</button>
+        <button class="target-btn" data-target="mars"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#e2723a,#8f3d1c);"></span>화성</button>
+        <button class="target-btn" data-target="jupiter"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#e5c9a4,#a9754a);"></span>목성</button>
+        <button class="target-btn" data-target="saturn"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#eeddac,#a68a4f);"></span>토성</button>
+        <button class="target-btn" data-target="uranus"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#aee3ea,#4f8a94);"></span>천왕성</button>
+        <button class="target-btn" data-target="neptune"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#7a94ea,#2c3f80);"></span>해왕성</button>
+        <button class="target-btn" data-target="sun"><span class="swatch" style="background:radial-gradient(circle at 32% 32%,#fff3d2,#e07a1f);"></span>태양</button>
+      </div>
+      <div class="guide-box" id="guide-box"><div class="placeholder">목표 행성을 선택하고 "자동 조준"을 누르면 발사 속도·각도·위치·시점을 전부 계산해 슬라이더에 반영합니다. 그 다음 발사만 누르면 목표 중력권 진입 시 자동 감속·착륙까지 수행됩니다.</div></div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-accent btn-small" id="btn-autopilot">🎯 자동 조준 (속도·각도·시점 전체 계산)</button>
+      </div>
+    </div>
+
+    <div class="section" id="missile-section" style="display:none;">
+      <div class="section-title">미사일 목표 지점</div>
+      <div class="field">
+        <div class="field-row"><span class="field-label">목표 지점 (행성 둘레각)</span><span class="field-value" id="val-missiletarget">90°</span></div>
+        <input type="range" id="in-missiletarget" min="1" max="359" step="1" value="90">
+      </div>
+      <div class="guide-box" id="missile-guide-box"><div class="placeholder">"탄도 계산"을 누르면 현재 속력(v₀)으로 목표 지점에 명중시키는 발사각을 계산합니다.</div></div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-accent btn-small" id="btn-calc-ballistic">📐 탄도 계산</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-launch">발사</button>
+        <button class="btn btn-ghost" id="btn-reset">초기화</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">비행 상태</div>
+      <div class="flight-state state-idle" id="flight-state"><div class="led"></div><div class="label" id="flight-state-label">대기 중</div></div>
+      <div class="status-grid" style="margin-top:12px;">
+        <div class="status-card wide"><div class="k">현재 중력권</div><div class="v accent" id="stat-dominant">지구</div></div>
+        <div class="status-card"><div class="k">경과 시간</div><div class="v" id="stat-time">0<span class="u">s</span></div></div>
+        <div class="status-card"><div class="k">고도 / 거리</div><div class="v" id="stat-alt">0<span class="u">km</span></div></div>
+        <div class="status-card"><div class="k">현재 속력 (v)</div><div class="v" id="stat-v">0<span class="u">m/s</span></div></div>
+        <div class="status-card"><div class="k">중심 거리 (r)</div><div class="v" id="stat-r">0<span class="u">km</span></div></div>
+        <div class="status-card"><div class="k">제1우주속도 (vc)</div><div class="v" id="stat-vc">0<span class="u">m/s</span></div></div>
+        <div class="status-card"><div class="k">제2우주속도 (ve)</div><div class="v" id="stat-ve">0<span class="u">m/s</span></div></div>
+      </div>
+      <div class="orbit-tag"><span>궤도 유형</span><b id="stat-orbit">—</b></div>
+    </div>
+
+    <div class="section" style="flex:1;">
+      <div class="section-title">임무 이벤트 로그</div>
+      <ul class="event-log" id="event-log"><li><span class="em empty">중력권 진입·이탈, 충돌·착륙·명중 이벤트가 여기에 기록됩니다.</span></li></ul>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <canvas id="simCanvas"></canvas>
+    <div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div>
+    <div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+    <div class="hud-title">TRAJECTORY VIEW · <span id="hud-body-name">지구</span></div>
+    <div class="hud-timescale">
+      <label>배속</label>
+      <input type="range" id="in-timescale" min="1" max="5000" step="1" value="60">
+      <span class="tv" id="val-timescale">×60</span>
+    </div>
+    <div class="hud-clock">MET&nbsp;<b id="clock-text">T+00:00:00</b></div>
+    <div class="hud-legend">
+      <div class="li"><span class="sw" style="background:var(--accent-amber);"></span>로켓</div>
+      <div class="li"><span class="sw" style="background:var(--accent-cyan);"></span>궤적</div>
+    </div>
+    <div class="hud-zoom">
+      <button id="btn-zoom-in" title="확대">+</button>
+      <div class="sep"></div>
+      <button id="btn-zoom-out" title="축소">−</button>
+      <div class="sep"></div>
+      <button id="btn-autotrack" class="active" title="자동추적 켜기/끄기">⌖</button>
+    </div>
+    <div class="hud-banner" id="hud-banner">🚀 궤도 탈출 성공</div>
+  </main>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const G = 6.674e-11;
+  const AU = 1.495978707e11;
+  const DAY = 86400;
+  const LANDING_SAFE_SPEED = 120;
+  const LOCAL_MAX_TIMESCALE = 5000;
+  const DEEPSPACE_MAX_TIMESCALE = 300000;
+
+  const BODIES = {
+    sun:     { key:'sun',     name:'태양',   M:1.989e30,  R:696340000, c1:'#ffe3a3', c2:'#e07a1f', orbitsAround:null,   a:0,          period:0,            theta0:0    },
+    mercury: { key:'mercury', name:'수성',   M:3.301e23,  R:2439700,   c1:'#cabba9', c2:'#7a6c5d', orbitsAround:'sun',  a:57.9e9,     period:87.97*DAY,    theta0:0.35 },
+    venus:   { key:'venus',   name:'금성',   M:4.867e24,  R:6051800,   c1:'#f0d6a0', c2:'#a9793a', orbitsAround:'sun',  a:108.2e9,    period:224.70*DAY,   theta0:2.10 },
+    earth:   { key:'earth',   name:'지구',   M:5.972e24,  R:6371000,   c1:'#4f9bff', c2:'#173a70', orbitsAround:'sun',  a:149.6e9,    period:365.25*DAY,   theta0:4.80 },
+    moon:    { key:'moon',    name:'달',     M:7.342e22,  R:1737000,   c1:'#cfcfd4', c2:'#5a5a60', orbitsAround:'earth',a:384400000,  period:27.32*DAY,    theta0:1.10 },
+    mars:    { key:'mars',    name:'화성',   M:6.417e23,  R:3389500,   c1:'#e2723a', c2:'#8f3d1c', orbitsAround:'sun',  a:227.9e9,    period:686.98*DAY,   theta0:0.95 },
+    jupiter: { key:'jupiter', name:'목성',   M:1.898e27,  R:69911000,  c1:'#e5c9a4', c2:'#a9754a', orbitsAround:'sun',  a:778.5e9,    period:4332.59*DAY,  theta0:3.60 },
+    saturn:  { key:'saturn',  name:'토성',   M:5.683e26,  R:58232000,  c1:'#eeddac', c2:'#a68a4f', orbitsAround:'sun',  a:1434.0e9,   period:10759.22*DAY, theta0:5.55 },
+    uranus:  { key:'uranus',  name:'천왕성', M:8.681e25,  R:25362000,  c1:'#aee3ea', c2:'#4f8a94', orbitsAround:'sun',  a:2871.0e9,   period:30688.5*DAY,  theta0:0.20 },
+    neptune: { key:'neptune', name:'해왕성', M:1.024e26,  R:24622000,  c1:'#7a94ea', c2:'#2c3f80', orbitsAround:'sun',  a:4495.0e9,   period:60182*DAY,    theta0:2.85 },
+  };
+  const BODY_ORDER = ['sun','mercury','venus','earth','moon','mars','jupiter','saturn','uranus','neptune'];
+  const TARGET_KEYS = ['mercury','venus','mars','jupiter','saturn','uranus','neptune','sun'];
+
+  function bodyOmega(b){ return b.period ? (2*Math.PI/b.period) : 0; }
+  function bodyPos(key, t){
+    const b = BODIES[key];
+    if (!b.orbitsAround) return {x:0, y:0};
+    const parent = bodyPos(b.orbitsAround, t);
+    const theta = b.theta0 + bodyOmega(b)*t;
+    return { x: parent.x + b.a*Math.cos(theta), y: parent.y + b.a*Math.sin(theta) };
+  }
+  function bodyVel(key, t){
+    const b = BODIES[key];
+    if (!b.orbitsAround) return {x:0, y:0};
+    const parentV = bodyVel(b.orbitsAround, t);
+    const w = bodyOmega(b);
+    const theta = b.theta0 + w*t;
+    const speed = w*b.a;
+    return { x: parentV.x - speed*Math.sin(theta), y: parentV.y + speed*Math.cos(theta) };
+  }
+  const SOI = {};
+  BODY_ORDER.forEach(key=>{
+    const b = BODIES[key];
+    if (!b.orbitsAround){ SOI[key] = Infinity; return; }
+    const parent = BODIES[b.orbitsAround];
+    SOI[key] = b.a * Math.cbrt(b.M/(3*parent.M));
+  });
+  function findDominant(x, y, t){
+    let best = null, bestRatio = Infinity;
+    for (let i=0;i<BODY_ORDER.length;i++){
+      const key = BODY_ORDER[i];
+      if (key === 'sun') continue;
+      const p = bodyPos(key, t);
+      const dist = Math.hypot(x-p.x, y-p.y);
+      const ratio = dist / SOI[key];
+      if (ratio < 1 && ratio < bestRatio){ bestRatio = ratio; best = key; }
+    }
+    return best || 'sun';
+  }
+  function totalAccel(x, y, t){
+    let ax = 0, ay = 0;
+    for (let i=0;i<BODY_ORDER.length;i++){
+      const key = BODY_ORDER[i];
+      const b = BODIES[key];
+      const p = bodyPos(key, t);
+      const dx = p.x-x, dy = p.y-y;
+      const r2 = dx*dx+dy*dy;
+      const r = Math.sqrt(r2);
+      if (r < 1) continue;
+      const f = G*b.M/(r2*r);
+      ax += f*dx; ay += f*dy;
+    }
+    return { ax, ay };
+  }
+  function normalize(v){ const m = Math.hypot(v.x, v.y) || 1; return { x: v.x/m, y: v.y/m }; }
+  function rotate(v, ang){ const c = Math.cos(ang), s = Math.sin(ang); return { x: v.x*c - v.y*s, y: v.x*s + v.y*c }; }
+
+  // ===== DOM refs =====
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d');
+  let starCanvas = document.createElement('canvas');
+  let starCtx = starCanvas.getContext('2d');
+
+  const el = {
+    v0: document.getElementById('in-v0'), v0v: document.getElementById('val-v0'),
+    angle: document.getElementById('in-angle'), anglev: document.getElementById('val-angle'),
+    launchPos: document.getElementById('in-launchpos'), launchPosv: document.getElementById('val-launchpos'),
+    h0: document.getElementById('in-h0'), h0v: document.getElementById('val-h0'),
+    mass: document.getElementById('in-mass'), massv: document.getElementById('val-mass'),
+    timescale: document.getElementById('in-timescale'), timescalev: document.getElementById('val-timescale'),
+    launchBtn: document.getElementById('btn-launch'), resetBtn: document.getElementById('btn-reset'),
+    btnEarth: document.getElementById('btn-earth'), btnMoon: document.getElementById('btn-moon'),
+    modeOrbit: document.getElementById('mode-orbit'), modeMissile: document.getElementById('mode-missile'),
+    guideSection: document.getElementById('guide-section'), missileSection: document.getElementById('missile-section'),
+    flightState: document.getElementById('flight-state'), flightStateLabel: document.getElementById('flight-state-label'),
+    statDominant: document.getElementById('stat-dominant'), statTime: document.getElementById('stat-time'),
+    statAlt: document.getElementById('stat-alt'), statV: document.getElementById('stat-v'), statR: document.getElementById('stat-r'),
+    statVc: document.getElementById('stat-vc'), statVe: document.getElementById('stat-ve'), statOrbit: document.getElementById('stat-orbit'),
+    clockText: document.getElementById('clock-text'), eventLog: document.getElementById('event-log'),
+    hudBodyName: document.getElementById('hud-body-name'), hudBanner: document.getElementById('hud-banner'),
+    targetGrid: document.getElementById('target-grid'), guideBox: document.getElementById('guide-box'),
+    autopilotBtn: document.getElementById('btn-autopilot'),
+    zoomInBtn: document.getElementById('btn-zoom-in'), zoomOutBtn: document.getElementById('btn-zoom-out'),
+    autotrackBtn: document.getElementById('btn-autotrack'),
+    missileTarget: document.getElementById('in-missiletarget'), missileTargetv: document.getElementById('val-missiletarget'),
+    missileGuideBox: document.getElementById('missile-guide-box'), calcBallisticBtn: document.getElementById('btn-calc-ballistic'),
+  };
+
+  let currentPlanet = 'earth';
+  let simMode = 'orbit'; // 'orbit' | 'missile'
+  let sim = null;
+  let scale = 1, scaleTarget = 1;
+  let animHandle = null, lastFrameTs = null, bannerTimeout = null;
+  let selectedTarget = null;
+  let autopilotPlan = null;      // {targetKey, epoch, vLaunch, phiDeg, thetaDeg}
+  let launchEpochOverride = null;
+  let missileSolvedTheta = null;
+
+  // camera
+  let zoomFactor = 1, manualZoom = false;
+  let autoTrack = true;
+  let manualBaseScale = null;
+  let panOffsetPx = {x:0, y:0};
+  const ZOOM_MIN = 0.03, ZOOM_MAX = 40, ZOOM_STEP = 1.28;
+
+  function fmt(n, digits){
+    if (!isFinite(n)) return '—';
+    digits = digits === undefined ? 0 : digits;
+    return n.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  }
+  function fmtDist(m){ if (Math.abs(m) >= AU*0.05) return fmt(m/AU, 3) + ' AU'; return fmt(m/1000) + ' km'; }
+  function fmtDuration(sec){
+    if (sec < 3600) return fmt(sec) + '초';
+    const days = sec/86400;
+    if (days < 2) return fmt(sec/3600,1) + '시간';
+    if (days < 900) return fmt(days,1) + '일';
+    return fmt(days/365.25,2) + '년';
+  }
+
+  function updateReadouts(){
+    el.v0v.textContent = fmt(+el.v0.value) + ' m/s';
+    el.anglev.textContent = el.angle.value + '°';
+    el.launchPosv.textContent = el.launchPos.value + '°';
+    el.h0v.textContent = fmt(+el.h0.value) + ' km';
+    el.massv.textContent = fmt(+el.mass.value) + ' kg';
+    el.timescalev.textContent = '×' + Number(el.timescale.value).toLocaleString('ko-KR');
+    el.missileTargetv.textContent = el.missileTarget.value + '°';
+  }
+  [el.v0, el.angle, el.launchPos, el.h0, el.mass].forEach(i => i.addEventListener('input', ()=>{ updateReadouts(); autopilotPlan=null; launchEpochOverride=null; }));
+  el.timescale.addEventListener('input', updateReadouts);
+  el.missileTarget.addEventListener('input', updateReadouts);
+  updateReadouts();
+
+  // ===== Mode switching =====
+  function setMode(m){
+    simMode = m;
+    el.modeOrbit.classList.toggle('active', m==='orbit');
+    el.modeMissile.classList.toggle('active', m==='missile');
+    el.guideSection.style.display = (m==='orbit') ? '' : 'none';
+    el.missileSection.style.display = (m==='missile') ? '' : 'none';
+    resetSim();
+  }
+  el.modeOrbit.addEventListener('click', ()=>setMode('orbit'));
+  el.modeMissile.addEventListener('click', ()=>setMode('missile'));
+
+  function selectPlanet(p){
+    currentPlanet = p;
+    el.btnEarth.classList.toggle('active', p === 'earth');
+    el.btnMoon.classList.toggle('active', p === 'moon');
+    autopilotPlan=null; launchEpochOverride=null;
+    if (!sim || !sim.running) resetSim();
+    if (selectedTarget) computeAndShowGuide();
+  }
+  el.btnEarth.addEventListener('click', () => selectPlanet('earth'));
+  el.btnMoon.addEventListener('click', () => selectPlanet('moon'));
+
+  // ===== Autopilot planning (exact Hohmann-phase + hyperbolic departure geometry) =====
+  function computeAutopilotPlan(targetKey){
+    const depKey = currentPlanet;
+    const body = BODIES[depKey];
+    const tgt = BODIES[targetKey];
+    const muSun = G*BODIES.sun.M;
+    const depPos0 = bodyPos(depKey, 0);
+    const r1 = Math.max(Math.hypot(depPos0.x, depPos0.y), 1);
+    let t_wait = 0;
+
+    if (targetKey !== 'sun'){
+      const tgtPos0 = bodyPos(targetKey, 0);
+      const r2 = Math.max(Math.hypot(tgtPos0.x, tgtPos0.y), tgt.R);
+      const a_t = (r1+r2)/2;
+      const T_transfer = Math.PI*Math.sqrt(Math.pow(a_t,3)/muSun);
+      const angDep0 = Math.atan2(depPos0.y, depPos0.x);
+      const angTgt0 = Math.atan2(tgtPos0.y, tgtPos0.x);
+      const phaseCurrent = ((angTgt0-angDep0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+      const wDep = bodyOmega(BODIES[depKey]);
+      const wTgt = bodyOmega(tgt);
+      const idealPhase = ((Math.PI - wTgt*T_transfer)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+      const dOmega = wTgt - wDep;
+      if (Math.abs(dOmega) < 1e-15){ t_wait = 0; }
+      else{
+        const period = 2*Math.PI/Math.abs(dOmega);
+        let diff = idealPhase - phaseCurrent;
+        let tcand = diff/dOmega;
+        while (tcand < 0) tcand += period;
+        t_wait = tcand % period;
+      }
+    }
+
+    const depPosW = bodyPos(depKey, t_wait);
+    const r1w = Math.max(Math.hypot(depPosW.x, depPosW.y), 1);
+    const tgtPosW = targetKey==='sun' ? {x:0,y:0} : bodyPos(targetKey, t_wait);
+    const r2w = targetKey==='sun' ? Math.max(tgt.R,1) : Math.max(Math.hypot(tgtPosW.x,tgtPosW.y), tgt.R);
+    const a_tw = (r1w+r2w)/2;
+    const vTransferAtR1 = Math.sqrt(Math.max(muSun*(2/r1w - 1/a_tw), 0));
+    const vCircular = Math.sqrt(muSun/r1w);
+    const dv = vTransferAtR1 - vCircular;
+    const T_transfer_w = Math.PI*Math.sqrt(Math.pow(a_tw,3)/Math.max(muSun,1));
+
+    const refDirW = normalize(depPosW.x === 0 && depPosW.y === 0 ? {x:1,y:0} : depPosW);
+    const tangentialW = rotate(refDirW, Math.PI/2);
+    const vInfMag = Math.abs(dv);
+    const vinfHat = dv >= 0 ? tangentialW : {x:-tangentialW.x, y:-tangentialW.y};
+
+    const h0m = (+el.h0.value)*1000;
+    const rLaunch = body.R + h0m;
+    const vLaunch = Math.sqrt(vInfMag*vInfMag + 2*G*body.M/rLaunch);
+
+    let phiDeg = 0;
+    if (vInfMag > 1e-6){
+      const e = 1 + rLaunch*vInfMag*vInfMag/(G*body.M);
+      const nuInf = Math.acos(Math.max(-1, Math.min(1, -1/e)));
+      const vinfAngle = Math.atan2(vinfHat.y, vinfHat.x);
+      const refAngle = Math.atan2(refDirW.y, refDirW.x);
+      let rhatAngle = vinfAngle - nuInf;
+      let phaseAngle = ((rhatAngle - refAngle) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+      phiDeg = phaseAngle*180/Math.PI;
+    }
+
+    return { targetKey, epoch:t_wait, vLaunch, phiDeg, thetaDeg:0, T_transfer:T_transfer_w, vInfMag, retrograde: dv<0 };
+  }
+
+  function computeAndShowGuide(){
+    if (!selectedTarget){
+      el.guideBox.innerHTML = '<div class="placeholder">목표 행성을 선택하고 "자동 조준"을 누르면 발사 속도·각도·위치·시점을 전부 계산해 슬라이더에 반영합니다. 그 다음 발사만 누르면 목표 중력권 진입 시 자동 감속·착륙까지 수행됩니다.</div>';
+      return;
+    }
+    const plan = computeAutopilotPlan(selectedTarget);
+    const tgtName = BODIES[selectedTarget].name;
+    let html = '';
+    html += '<div class="row"><span>필요 발사 속도</span><b>' + fmt(plan.vLaunch) + ' m/s</b></div>';
+    html += '<div class="row"><span>대기 시간(발사 시점까지)</span><b>' + fmtDuration(plan.epoch) + '</b></div>';
+    html += '<div class="row"><span>예상 비행 시간</span><b>' + fmtDuration(plan.T_transfer) + '</b></div>';
+    html += '<div class="row"><span>발사 지점(φ) / 발사각(θ)</span><b>' + fmt(plan.phiDeg,1) + '° / 0°</b></div>';
+    html += '<div class="note">"자동 조준"을 누르면 위 값이 모든 슬라이더에 자동 반영되고, 발사 시점도 이 대기시간만큼 앞당겨집니다(시간 순간이동). 발사 후 ' + tgtName + ' 중력권 진입 시 자동 감속·착륙 보조가 작동합니다.</div>';
+    el.guideBox.innerHTML = html;
+  }
+
+  el.targetGrid.querySelectorAll('.target-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.getAttribute('data-target');
+      selectedTarget = (selectedTarget === key) ? null : key;
+      el.targetGrid.querySelectorAll('.target-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-target')===selectedTarget));
+      autopilotPlan = null; launchEpochOverride = null;
+      computeAndShowGuide();
+    });
+  });
+
+  el.autopilotBtn.addEventListener('click', ()=>{
+    if (!selectedTarget) return;
+    const plan = computeAutopilotPlan(selectedTarget);
+    autopilotPlan = plan;
+    launchEpochOverride = plan.epoch;
+
+    const v = Math.round(plan.vLaunch/10)*10;
+    if (v > +el.v0.max) el.v0.max = Math.ceil(v/500)*500;
+    el.v0.value = Math.min(v, +el.v0.max);
+    el.angle.value = 0;
+    el.launchPos.value = Math.round(plan.phiDeg);
+    updateReadouts();
+
+    if (!sim || (sim.trail.length===0 && !sim.running)) resetSim();
+    sim.autopilotTarget = selectedTarget;
+    sim.autopilotArmed = true;
+
+    el.guideBox.innerHTML = '<div class="ok">✓ 자동 조준 완료 — 발사 버튼을 누르면 ' + fmtDuration(plan.epoch) + ' 만큼 시간을 이동한 뒤 최적 궤적으로 발사되고, ' + BODIES[selectedTarget].name + ' 도착 시 자동 착륙합니다.</div>';
+  });
+
+  // ===== Missile mode ballistic solver (local 2-body, numeric) =====
+  function localBallisticImpactAngle(v0, thetaRad, R, M, h0m){
+    let x = R+h0m, y = 0;
+    let vx = v0*Math.sin(thetaRad), vy = v0*Math.cos(thetaRad);
+    const mu = G*M;
+    let t = 0;
+    const refPeriod = 2*Math.PI*Math.sqrt((R*R*R)/mu);
+    const dt = Math.max(refPeriod/4000, 0.02);
+    const maxTime = refPeriod*3;
+    let launched = false;
+    let steps = 0, maxSteps = 400000;
+    while (t < maxTime && steps < maxSteps){
+      const r2 = x*x+y*y; const r = Math.sqrt(r2);
+      if (launched && r <= R) return Math.atan2(y,x);
+      if (r > R*80) return null;
+      const r3 = r2*r;
+      const ax = -mu*x/r3, ay = -mu*y/r3;
+      vx += ax*dt/2; vy += ay*dt/2;
+      x += vx*dt; y += vy*dt; t += dt;
+      const r2b = x*x+y*y, rb = Math.sqrt(r2b), r3b = r2b*rb;
+      const ax2 = -mu*x/r3b, ay2 = -mu*y/r3b;
+      vx += ax2*dt/2; vy += ay2*dt/2;
+      if (Math.hypot(x,y) > R*1.02) launched = true;
+      steps++;
+    }
+    return null;
+  }
+  function solveBallisticTheta(v0, targetDeltaRad, R, M, h0m){
+    const N = 44;
+    let prevTheta=null, prevRange=null;
+    let bracket = null;
+    for (let i=1;i<N;i++){
+      const thetaDeg = i*(89/N);
+      const thetaRad = thetaDeg*Math.PI/180;
+      const impactAng = localBallisticImpactAngle(v0, thetaRad, R, M, h0m);
+      if (impactAng == null) continue;
+      let rangeAng = ((-impactAng) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+      if (prevTheta != null){
+        const d1 = prevRange - targetDeltaRad, d2 = rangeAng - targetDeltaRad;
+        if (d1 === 0) return prevTheta;
+        if (d2 === 0) return thetaRad;
+        if ((d1<0 && d2>0) || (d1>0 && d2<0)){ bracket=[prevTheta, thetaRad]; break; }
+      }
+      prevTheta = thetaRad; prevRange = rangeAng;
+    }
+    if (!bracket) return null;
+    let lo=bracket[0], hi=bracket[1];
+    for (let iter=0; iter<28; iter++){
+      const mid=(lo+hi)/2;
+      const impactAng = localBallisticImpactAngle(v0, mid, R, M, h0m);
+      if (impactAng==null){ hi=mid; continue; }
+      let rangeAng = ((-impactAng)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+      const loImpact = localBallisticImpactAngle(v0, lo, R, M, h0m);
+      let loRange = loImpact==null? null : ((-loImpact)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+      const sameSignAsLo = (loRange!=null) && ((rangeAng-targetDeltaRad)*(loRange-targetDeltaRad) > 0);
+      if (sameSignAsLo) lo=mid; else hi=mid;
+    }
+    return (lo+hi)/2;
+  }
+
+  el.calcBallisticBtn.addEventListener('click', ()=>{
+    const body = BODIES[currentPlanet];
+    const v0 = +el.v0.value;
+    const h0m = (+el.h0.value)*1000;
+    const targetDeg = +el.missileTarget.value;
+    const targetRad = targetDeg*Math.PI/180;
+    const theta = solveBallisticTheta(v0, targetRad, body.R, body.M, h0m);
+    if (theta == null){
+      missileSolvedTheta = null;
+      el.missileGuideBox.innerHTML = '<div class="note">⚠ 현재 속력(' + fmt(v0) + ' m/s)으로는 이 지점에 도달할 수 없습니다. 속력을 높이거나 목표 각도를 줄여보세요.</div>';
+      return;
+    }
+    missileSolvedTheta = theta*180/Math.PI;
+    el.missileGuideBox.innerHTML =
+      '<div class="row"><span>필요 발사각(θ)</span><b>' + fmt(missileSolvedTheta,1) + '°</b></div>' +
+      '<div class="note">각도 슬라이더에 자동 반영되었습니다. φ(발사 지점)는 0°를 기준으로 목표까지의 상대 각도이니, φ를 바꾸지 않았다면 그대로 발사하세요.</div>';
+    el.angle.value = Math.round(missileSolvedTheta);
+    el.launchPos.value = 0;
+    updateReadouts();
+  });
+
+  // ===== Canvas sizing / starfield =====
+  function dpr(){ return Math.min(window.devicePixelRatio || 1, 2); }
+  function resizeCanvas(){
+    const stage = document.getElementById('stage');
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const d = dpr();
+    canvas.width = w*d; canvas.height = h*d;
+    canvas.style.width = w+'px'; canvas.style.height = h+'px';
+    ctx.setTransform(d,0,0,d,0,0);
+    starCanvas.width = w; starCanvas.height = h;
+    drawStarfield(w, h);
+    render();
+  }
+  function drawStarfield(w, h){
+    starCtx.clearRect(0,0,w,h);
+    starCtx.fillStyle = '#05070d'; starCtx.fillRect(0,0,w,h);
+    let seed = 42;
+    function rnd(){ seed = (seed*9301+49297) % 233280; return seed/233280; }
+    const layers = [ { n: Math.floor(w*h/9000), r:[0.4,1.0], a:[0.25,0.6] }, { n: Math.floor(w*h/16000), r:[1.0,1.7], a:[0.5,0.9] } ];
+    layers.forEach(layer=>{
+      for (let i=0;i<layer.n;i++){
+        const x = rnd()*w, y = rnd()*h;
+        const r = layer.r[0] + rnd()*(layer.r[1]-layer.r[0]);
+        const a = layer.a[0] + rnd()*(layer.a[1]-layer.a[0]);
+        starCtx.beginPath(); starCtx.fillStyle = `rgba(230,238,255,${a.toFixed(2)})`;
+        starCtx.arc(x,y,r,0,Math.PI*2); starCtx.fill();
+      }
+    });
+    const grad = starCtx.createRadialGradient(w*0.75,h*0.2,0,w*0.75,h*0.2, w*0.6);
+    grad.addColorStop(0,'rgba(60,90,160,0.10)'); grad.addColorStop(1,'rgba(60,90,160,0)');
+    starCtx.fillStyle = grad; starCtx.fillRect(0,0,w,h);
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ===== Camera controls: auto-track toggle, drag pan, wheel/pinch zoom =====
+  function updateAutoTrackBtn(){ el.autotrackBtn.classList.toggle('active', autoTrack); }
+  function setAutoTrack(v){
+    autoTrack = v;
+    if (autoTrack){ panOffsetPx = {x:0,y:0}; manualBaseScale = null; }
+    else { manualBaseScale = scale / zoomFactor; }
+    updateAutoTrackBtn();
+    render();
+  }
+  el.autotrackBtn.addEventListener('click', ()=> setAutoTrack(!autoTrack));
+
+  function zoomIn(){ zoomFactor = Math.min(ZOOM_MAX, zoomFactor*ZOOM_STEP); manualZoom = true; render(); }
+  function zoomOut(){ zoomFactor = Math.max(ZOOM_MIN, zoomFactor/ZOOM_STEP); manualZoom = true; render(); }
+  el.zoomInBtn.addEventListener('click', zoomIn);
+  el.zoomOutBtn.addEventListener('click', zoomOut);
+
+  let isDragging=false, dragStart=null, panStart=null;
+  canvas.addEventListener('mousedown', e=>{
+    isDragging=true; dragStart={x:e.clientX,y:e.clientY}; panStart={x:panOffsetPx.x,y:panOffsetPx.y};
+    canvas.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', e=>{
+    if (!isDragging) return;
+    if (autoTrack) setAutoTrack(false);
+    panOffsetPx.x = panStart.x + (e.clientX-dragStart.x);
+    panOffsetPx.y = panStart.y + (e.clientY-dragStart.y);
+    render();
+  });
+  window.addEventListener('mouseup', ()=>{ isDragging=false; canvas.classList.remove('dragging'); });
+
+  canvas.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? ZOOM_STEP : 1/ZOOM_STEP;
+    zoomFactor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomFactor*factor));
+    render();
+  }, {passive:false});
+
+  let touchMode=null, pinchStartDist=0, pinchStartZoom=1;
+  canvas.addEventListener('touchstart', e=>{
+    if (e.touches.length===1){
+      touchMode='pan'; dragStart={x:e.touches[0].clientX,y:e.touches[0].clientY}; panStart={x:panOffsetPx.x,y:panOffsetPx.y};
+    } else if (e.touches.length===2){
+      touchMode='pinch';
+      pinchStartDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      pinchStartZoom = zoomFactor;
+    }
+  }, {passive:true});
+  canvas.addEventListener('touchmove', e=>{
+    if (touchMode==='pan' && e.touches.length===1){
+      if (autoTrack) setAutoTrack(false);
+      panOffsetPx.x = panStart.x + (e.touches[0].clientX-dragStart.x);
+      panOffsetPx.y = panStart.y + (e.touches[0].clientY-dragStart.y);
+      render();
+    } else if (touchMode==='pinch' && e.touches.length===2){
+      const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      zoomFactor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchStartZoom*(d/Math.max(pinchStartDist,1))));
+      render();
+    }
+  }, {passive:true});
+  canvas.addEventListener('touchend', ()=>{ touchMode=null; });
+
+  // ===== Sim lifecycle =====
+  function resetSim(){
+    if (animHandle) cancelAnimationFrame(animHandle);
+    animHandle = null; lastFrameTs = null;
+    if (bannerTimeout) clearTimeout(bannerTimeout);
+    el.hudBanner.classList.remove('show');
+
+    sim = {
+      originBody: currentPlanet, dominant: currentPlanet,
+      running:false, crashed:false, landed:false, crashLogged:false,
+      impactBody:null, impactSpeed:0, impactAngleDeg:null, missileHit:null,
+      hasEscapedOrigin:false, escapeBannerUntil:0,
+      time:0, epoch0:0, x:0, y:0, vx:0, vy:0,
+      trail:[], events:[],
+      autopilotTarget: null, autopilotArmed:false
+    };
+    zoomFactor = 1; manualZoom = false; autoTrack = true; panOffsetPx={x:0,y:0}; manualBaseScale=null;
+    updateAutoTrackBtn();
+    scale = 1; scaleTarget = 1;
+    el.launchBtn.textContent = '발사';
+    el.launchBtn.classList.remove('is-running');
+    setFlightState('idle', '대기 중');
+    updateTimescaleRange();
+    renderEvents();
+    updateStatusPanel();
+    render();
+  }
+
+  function fitScale(desiredViewRadius){
+    const w = canvas.width / dpr(), h = canvas.height / dpr();
+    const fitRadius = Math.min(w,h) * 0.42;
+    return fitRadius / Math.max(desiredViewRadius, 1);
+  }
+  function computeDesiredView(){
+    const t = sim ? sim.time : 0;
+    const dominantKey = sim ? sim.dominant : currentPlanet;
+    const originPos = bodyPos(dominantKey, t);
+    let refDist;
+    if (sim && sim.trail.length > 0) refDist = Math.hypot(sim.x-originPos.x, sim.y-originPos.y);
+    else refDist = BODIES[currentPlanet].R + (+el.h0.value)*1000;
+    const domR = BODIES[dominantKey].R;
+    return { dominantKey, originPos, desiredView: Math.max(refDist*1.45, domR*3.4) };
+  }
+
+  function launch(){
+    if (sim && sim.running){
+      sim.running = false;
+      el.launchBtn.textContent = '재개'; el.launchBtn.classList.remove('is-running');
+      if (animHandle) cancelAnimationFrame(animHandle); animHandle = null;
+      setFlightState('paused', '일시정지');
+      return;
+    }
+    if (!sim || sim.crashed || sim.landed) resetSim();
+
+    if (sim.time === 0 && sim.trail.length === 0){
+      const t0 = (launchEpochOverride != null) ? launchEpochOverride : 0;
+      const body = BODIES[currentPlanet];
+      const p0 = bodyPos(currentPlanet, t0);
+      const v0body = bodyVel(currentPlanet, t0);
+      const refDir = normalize(p0.x === 0 && p0.y === 0 ? {x:1,y:0} : p0);
+      const phaseAngle = (+el.launchPos.value) * Math.PI/180;
+      const rhat = rotate(refDir, phaseAngle);
+      const that = { x: -rhat.y, y: rhat.x };
+      const v0 = +el.v0.value;
+      const ang = (+el.angle.value) * Math.PI/180;
+      const h0m = (+el.h0.value) * 1000;
+
+      sim.x = p0.x + rhat.x*(body.R + h0m);
+      sim.y = p0.y + rhat.y*(body.R + h0m);
+      sim.vx = v0body.x + that.x*v0*Math.cos(ang) + rhat.x*v0*Math.sin(ang);
+      sim.vy = v0body.y + that.y*v0*Math.cos(ang) + rhat.y*v0*Math.sin(ang);
+      sim.time = t0; sim.epoch0 = t0;
+      sim.trail.push({x:sim.x, y:sim.y});
+      sim.dominant = currentPlanet;
+
+      if (simMode === 'orbit' && autopilotPlan && autopilotPlan.targetKey){
+        sim.autopilotTarget = autopilotPlan.targetKey;
+        sim.autopilotArmed = true;
+      }
+      launchEpochOverride = null;
+
+      const info = computeDesiredView();
+      scaleTarget = fitScale(info.desiredView) * zoomFactor;
+      scale = scaleTarget;
+    }
+    sim.running = true;
+    setFlightState('flying', '비행 중 · ' + BODIES[sim.dominant].name + ' 중력권');
+    el.launchBtn.textContent = '일시정지'; el.launchBtn.classList.add('is-running');
+    lastFrameTs = null;
+    animHandle = requestAnimationFrame(loop);
+  }
+  el.launchBtn.addEventListener('click', launch);
+  el.resetBtn.addEventListener('click', resetSim);
+
+  function setFlightState(kind, label){ el.flightState.className = 'flight-state state-' + kind; el.flightStateLabel.textContent = label; }
+  function logEvent(msg){
+    sim.events.unshift({ t: sim.time - sim.epoch0, msg });
+    if (sim.events.length > 8) sim.events.pop();
+    renderEvents();
+  }
+  function renderEvents(){
+    if (!sim || sim.events.length === 0){
+      el.eventLog.innerHTML = '<li><span class="em empty">중력권 진입·이탈, 충돌·착륙·명중 이벤트가 여기에 기록됩니다.</span></li>';
+      return;
+    }
+    el.eventLog.innerHTML = sim.events.map(ev=> '<li><span class="et">' + formatMET(ev.t) + '</span><span class="em">' + ev.msg + '</span></li>').join('');
+  }
+  function bodyLabel(key){ return key === 'sun' ? '심우주(태양계 공간)' : (BODIES[key].name + ' 중력권'); }
+  function handleDominantChange(oldKey, newKey){
+    logEvent(bodyLabel(oldKey) + ' 이탈 → ' + bodyLabel(newKey) + ' 진입');
+    if (!sim.hasEscapedOrigin && oldKey === sim.originBody){
+      sim.hasEscapedOrigin = true;
+      sim.escapeBannerUntil = performance.now() + 3500;
+      el.hudBanner.textContent = '🚀 ' + BODIES[sim.originBody].name + ' 중력권 탈출 성공';
+      el.hudBanner.classList.add('show');
+      if (bannerTimeout) clearTimeout(bannerTimeout);
+      bannerTimeout = setTimeout(()=> el.hudBanner.classList.remove('show'), 3500);
+    }
+    if (sim.autopilotArmed && newKey === sim.autopilotTarget){
+      logEvent('자동조종: ' + BODIES[newKey].name + ' 진입 — 자동 착륙 보조 시작');
+    }
+  }
+
+  function estimateSubsteps(dtTotal){
+    const domKey = sim.dominant || currentPlanet;
+    const b = BODIES[domKey];
+    const p = bodyPos(domKey, sim.time);
+    const r = Math.max(Math.hypot(sim.x-p.x, sim.y-p.y), b.R*0.5);
+    const T = 2*Math.PI*Math.sqrt((r*r*r)/(G*b.M));
+    const maxDtSub = Math.min(Math.max(T/500, 0.01), 2500);
+    let n = Math.ceil(dtTotal/maxDtSub);
+    return Math.min(Math.max(n, 20), 3000);
+  }
+
+  function applyLandingAutopilot(dt){
+    if (!(sim.autopilotArmed && sim.dominant === sim.autopilotTarget)) return;
+    const tgt = BODIES[sim.autopilotTarget];
+    const tp = bodyPos(sim.autopilotTarget, sim.time);
+    const tv = bodyVel(sim.autopilotTarget, sim.time);
+    const rx = sim.x-tp.x, ry = sim.y-tp.y;
+    const r = Math.hypot(rx, ry);
+    const altitude = r - tgt.R;
+    if (altitude <= 0) return;
+    const rhatx = rx/r, rhaty = ry/r;
+    const thatx = -rhaty, thaty = rhatx;
+    const rvx = sim.vx-tv.x, rvy = sim.vy-tv.y;
+    const vr = rvx*rhatx + rvy*rhaty;
+    const vt = rvx*thatx + rvy*thaty;
+    const gSurf = G*tgt.M/(tgt.R*tgt.R);
+    const aBrake = 4*gSurf;
+    const vSafe = Math.sqrt(Math.max(2*aBrake*altitude, 0));
+    let newVr = vr;
+    if (vr < -vSafe) newVr = -vSafe;
+    const tau = 150;
+    const damp = Math.exp(-dt/tau);
+    const newVt = vt*damp;
+    sim.vx = tv.x + newVr*rhatx + newVt*thatx;
+    sim.vy = tv.y + newVr*rhaty + newVt*thaty;
+  }
+
+  function stepPhysics(dtTotal){
+    if (dtTotal <= 0) return;
+    const SUBSTEPS = estimateSubsteps(dtTotal);
+    const dt = dtTotal / SUBSTEPS;
+
+    for (let s=0; s<SUBSTEPS; s++){
+      if (sim.crashed || sim.landed) break;
+      const a1 = totalAccel(sim.x, sim.y, sim.time);
+      sim.vx += a1.ax * dt/2; sim.vy += a1.ay * dt/2;
+      sim.x += sim.vx * dt; sim.y += sim.vy * dt;
+      sim.time += dt;
+      const a2 = totalAccel(sim.x, sim.y, sim.time);
+      sim.vx += a2.ax * dt/2; sim.vy += a2.ay * dt/2;
+
+      applyLandingAutopilot(dt);
+
+      for (let i=0;i<BODY_ORDER.length;i++){
+        const key = BODY_ORDER[i];
+        const b = BODIES[key];
+        const p = bodyPos(key, sim.time);
+        const dist = Math.hypot(sim.x-p.x, sim.y-p.y);
+        if (dist <= b.R - 0.5){
+          const bv = bodyVel(key, sim.time);
+          const relSpeed = Math.hypot(sim.vx-bv.x, sim.vy-bv.y);
+          sim.impactBody = key; sim.impactSpeed = relSpeed; sim.dominant = key; sim.running = false;
+          if (simMode === 'missile' && key === sim.originBody){
+            const impactAng = Math.atan2(sim.y-p.y, sim.x-p.x);
+            const launchRefDir = normalize(bodyPos(key,0));
+            const impactRel = ((Math.atan2(sim.y-p.y,sim.x-p.x) - Math.atan2(launchRefDir.y,launchRefDir.x)) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+            sim.impactAngleDeg = impactRel*180/Math.PI;
+          }
+          if (relSpeed <= LANDING_SAFE_SPEED) sim.landed = true; else sim.crashed = true;
+          break;
+        }
+      }
+      if (sim.crashed || sim.landed) break;
+    }
+    sim.trail.push({x:sim.x, y:sim.y});
+    if (sim.trail.length > 5000) sim.trail.shift();
+  }
+
+  function updateTimescaleRange(){
+    const domKey = sim ? sim.dominant : currentPlanet;
+    const newMax = (domKey === 'sun') ? DEEPSPACE_MAX_TIMESCALE : LOCAL_MAX_TIMESCALE;
+    if (+el.timescale.max !== newMax){
+      el.timescale.max = newMax;
+      if (+el.timescale.value > newMax) el.timescale.value = newMax;
+      updateReadouts();
+    }
+  }
+
+  function loop(ts){
+    if (!lastFrameTs) lastFrameTs = ts;
+    let frameDt = (ts - lastFrameTs) / 1000;
+    lastFrameTs = ts;
+    frameDt = Math.min(frameDt, 0.05);
+
+    if (sim && sim.running){
+      const timeScale = +el.timescale.value;
+      stepPhysics(frameDt * timeScale);
+
+      if (!sim.crashed && !sim.landed && sim.trail.length > 1){
+        const newDom = findDominant(sim.x, sim.y, sim.time);
+        if (newDom !== sim.dominant){ handleDominantChange(sim.dominant, newDom); sim.dominant = newDom; }
+      }
+      if ((sim.crashed || sim.landed) && !sim.crashLogged){
+        const name = BODIES[sim.impactBody].name;
+        if (simMode==='missile' && sim.impactAngleDeg!=null){
+          const targetDeg = +el.missileTarget.value;
+          let diff = Math.abs(sim.impactAngleDeg - targetDeg);
+          if (diff > 180) diff = 360-diff;
+          const missKm = diff*Math.PI/180*BODIES[sim.impactBody].R/1000;
+          sim.missileHit = diff < 2;
+          logEvent((sim.missileHit? '🎯 명중! ' : '💥 빗나감 — 오차 ' + fmt(missKm) + 'km') + ' (충돌속도 ' + fmt(sim.impactSpeed) + ' m/s)');
+        } else if (sim.landed){
+          logEvent(name + ' 착륙 성공 (착륙속도 ' + fmt(sim.impactSpeed) + ' m/s)');
+        } else {
+          logEvent(name + ' 표면 충돌 (충돌속도 ' + fmt(sim.impactSpeed) + ' m/s)');
+        }
+        sim.crashLogged = true;
+      }
+      updateTimescaleRange();
+    }
+
+    updateStatusPanel();
+    render();
+
+    const now = performance.now();
+    if (sim && sim.crashed){
+      const label = (simMode==='missile' && sim.missileHit===false) ? '빗나감 (' + BODIES[sim.impactBody].name + ')' : '지표면 충돌 (' + BODIES[sim.impactBody].name + ')';
+      setFlightState('crash', label);
+      el.launchBtn.textContent = '발사'; el.launchBtn.classList.remove('is-running');
+    } else if (sim && sim.landed){
+      const label = (simMode==='missile' && sim.missileHit) ? '🎯 명중!' : '🛬 착륙 성공 (' + BODIES[sim.impactBody].name + ')';
+      setFlightState('landed', label);
+      el.launchBtn.textContent = '발사'; el.launchBtn.classList.remove('is-running');
+    } else if (sim && sim.running){
+      if (now < sim.escapeBannerUntil) setFlightState('escape', '궤도 탈출 성공!');
+      else setFlightState('flying', '비행 중 · ' + bodyLabel(sim.dominant));
+      animHandle = requestAnimationFrame(loop);
+    } else if (sim && !sim.running && sim.trail.length > 0){
+      setFlightState('paused', '일시정지');
+    }
+  }
+
+  function formatMET(totalSeconds){
+    totalSeconds = Math.max(0, Math.floor(totalSeconds));
+    const d = Math.floor(totalSeconds/86400);
+    const h = Math.floor((totalSeconds%86400)/3600);
+    const m = Math.floor((totalSeconds%3600)/60);
+    const s = totalSeconds%60;
+    const pad = n => String(n).padStart(2,'0');
+    return (d>0 ? d+'d ' : '') + `T+${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  function updateStatusPanel(){
+    const idle = !sim || (sim.trail.length === 0 && !sim.running);
+    if (idle){
+      const body = BODIES[currentPlanet];
+      const r0 = body.R + (+el.h0.value)*1000;
+      const vc = Math.sqrt(G*body.M/r0), ve = Math.sqrt(2)*vc;
+      el.statDominant.textContent = body.name;
+      el.statTime.innerHTML = '0<span class="u">s</span>';
+      el.statAlt.innerHTML = fmt(+el.h0.value) + '<span class="u">km</span>';
+      el.statV.innerHTML = '0<span class="u">m/s</span>';
+      el.statR.innerHTML = fmt(r0/1000) + '<span class="u">km</span>';
+      el.statVc.innerHTML = fmt(vc) + '<span class="u">m/s</span>';
+      el.statVe.innerHTML = fmt(ve) + '<span class="u">m/s</span>';
+      el.statOrbit.textContent = '발사 대기';
+      el.clockText.textContent = 'T+00:00:00';
+      el.hudBodyName.textContent = body.name;
+      return;
+    }
+    const dominant = sim.dominant;
+    const b = BODIES[dominant];
+    const p = bodyPos(dominant, sim.time);
+    const v = bodyVel(dominant, sim.time);
+    const rx = sim.x-p.x, ry = sim.y-p.y;
+    const rvx = sim.vx-v.x, rvy = sim.vy-v.y;
+    const r = Math.hypot(rx, ry);
+    const speed = Math.hypot(rvx, rvy);
+    const vc = Math.sqrt(G*b.M/r), ve = Math.sqrt(2)*vc;
+    const alt = r - b.R;
+
+    el.statDominant.textContent = dominant === 'sun' ? '심우주 (태양계 공간)' : b.name;
+    el.statTime.innerHTML = fmt(sim.time-sim.epoch0,1) + '<span class="u">s</span>';
+    el.statAlt.innerHTML = fmtDist(alt);
+    el.statV.innerHTML = fmt(speed) + '<span class="u">m/s</span>';
+    el.statR.innerHTML = fmtDist(r);
+    el.statVc.innerHTML = fmt(vc) + '<span class="u">m/s</span>';
+    el.statVe.innerHTML = fmt(ve) + '<span class="u">m/s</span>';
+    el.clockText.textContent = formatMET(sim.time-sim.epoch0);
+    el.hudBodyName.textContent = dominant === 'sun' ? '태양계' : b.name;
+
+    const mu = G*b.M;
+    const Espec = speed*speed/2 - mu/r;
+    const L = rx*rvy - ry*rvx;
+    let e = 1 + (2*Espec*L*L)/(mu*mu);
+    e = Math.sqrt(Math.max(0, e));
+    let label;
+    if (sim.crashed) label = simMode==='missile' ? '탄도 궤적 종료' : '지표면 충돌 궤적';
+    else if (sim.landed) label = '착륙 완료';
+    else if (e < 0.02) label = '원궤도 (위성)';
+    else if (e < 1) label = '타원 궤도';
+    else if (Math.abs(e-1) < 0.02) label = '포물선 (탈출 임계)';
+    else label = '쌍곡선 (탈출 궤도)';
+    el.statOrbit.textContent = label + '  ·  e=' + e.toFixed(3);
+  }
+
+  // ===== Decorative body textures =====
+  function seededRandom(seed){ let s=seed; return function(){ s=(s*9301+49297)%233280; return s/233280; }; }
+  const DECOR = {};
+  (function buildDecor(){
+    ['mercury','mars','moon'].forEach((key,idx)=>{
+      const rnd = seededRandom(1000+idx*77);
+      const craters=[];
+      const n = 14+Math.floor(rnd()*8);
+      for (let i=0;i<n;i++) craters.push({ ang: rnd()*Math.PI*2, dist: Math.sqrt(rnd())*0.82, size: 0.05+rnd()*0.11 });
+      DECOR[key] = { craters };
+    });
+    ['jupiter','saturn','uranus','neptune'].forEach((key,idx)=>{
+      const rnd = seededRandom(2000+idx*53);
+      const bands=[];
+      const n = 5+Math.floor(rnd()*3);
+      for (let i=0;i<n;i++) bands.push({ y:(rnd()*1.6-0.8), h:0.06+rnd()*0.10, a:0.10+rnd()*0.20 });
+      DECOR[key] = { bands };
+    });
+    // stylized real-ish continent silhouettes (unit-circle local coords, angle/dist pairs)
+    DECOR.earth = { continents: [
+      // Americas (north-south sweep, left side)
+      [ {a:200,d:0.55},{a:215,d:0.68},{a:230,d:0.66},{a:245,d:0.72},{a:258,d:0.60},
+        {a:270,d:0.48},{a:262,d:0.35},{a:250,d:0.30},{a:255,d:0.18},{a:248,d:0.06},
+        {a:238,d:0.14},{a:225,d:0.22},{a:210,d:0.30},{a:198,d:0.40},{a:192,d:0.50} ],
+      // Eurasia + Africa (large landmass, right/upper side)
+      [ {a:10,d:0.30},{a:25,d:0.45},{a:40,d:0.58},{a:55,d:0.62},{a:70,d:0.55},
+        {a:85,d:0.66},{a:95,d:0.78},{a:100,d:0.90},{a:92,d:0.98},{a:80,d:0.92},
+        {a:68,d:0.80},{a:55,d:0.86},{a:40,d:0.80},{a:25,d:0.70},{a:12,d:0.58},{a:2,d:0.42} ],
+      // Australia (small blob)
+      [ {a:135,d:0.62},{a:148,d:0.68},{a:158,d:0.64},{a:152,d:0.54},{a:140,d:0.52} ]
+    ]};
+  })();
+
+  function drawContinentPath(pts, sp, pr){
+    if (pts.length < 3) return;
+    const toXY = (p)=>{ const rad=p.a*Math.PI/180; return { x: sp.sx+Math.cos(rad)*p.d*pr, y: sp.sy+Math.sin(rad)*p.d*pr }; };
+    const pts2 = pts.map(toXY);
+    ctx.beginPath();
+    const n = pts2.length;
+    for (let i=0;i<n;i++){
+      const cur = pts2[i], nxt = pts2[(i+1)%n];
+      const mx = (cur.x+nxt.x)/2, my=(cur.y+nxt.y)/2;
+      if (i===0) ctx.moveTo(mx,my);
+      else ctx.quadraticCurveTo(cur.x, cur.y, mx, my);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(64,132,70,0.62)';
+    ctx.fill();
+  }
+
+  function decorateBody(key, sp, pr){
+    if (pr < 6) return;
+    const d = DECOR[key];
+    if (!d){ drawTerminator(sp, pr); return; }
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sp.sx, sp.sy, pr, 0, Math.PI*2); ctx.clip();
+    if (d.craters){
+      d.craters.forEach(c=>{
+        const cx = sp.sx + Math.cos(c.ang)*c.dist*pr, cy = sp.sy + Math.sin(c.ang)*c.dist*pr;
+        ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.20)';
+        ctx.arc(cx, cy, c.size*pr, 0, Math.PI*2); ctx.fill();
+      });
+    }
+    if (d.bands){
+      d.bands.forEach(b2=>{
+        ctx.beginPath(); ctx.fillStyle = `rgba(255,255,255,${b2.a})`;
+        ctx.ellipse(sp.sx, sp.sy + b2.y*pr, pr*1.05, b2.h*pr, 0, 0, Math.PI*2); ctx.fill();
+      });
+    }
+    if (d.continents){
+      d.continents.forEach(pts=> drawContinentPath(pts, sp, pr));
+      // cloud swirls
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = '#ffffff';
+      const cloudSpots = [ [0.3,0.2,0.35], [-0.4,0.35,0.28], [0.1,-0.5,0.3], [-0.2,-0.2,0.22] ];
+      cloudSpots.forEach(([cx,cy,r])=>{
+        ctx.beginPath(); ctx.ellipse(sp.sx+cx*pr, sp.sy+cy*pr, r*pr, r*pr*0.55, 0.4, 0, Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    drawTerminator(sp, pr);
+  }
+  function drawTerminator(sp, pr){
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sp.sx, sp.sy, pr, 0, Math.PI*2); ctx.clip();
+    const g = ctx.createLinearGradient(sp.sx-pr, sp.sy-pr, sp.sx+pr, sp.sy+pr);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.38)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sp.sx, sp.sy, pr, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  function drawSaturnRings(sp, pr){
+    ctx.save();
+    ctx.translate(sp.sx, sp.sy); ctx.rotate(-0.34); ctx.scale(1, 0.30);
+    const rInner = pr*1.35, rOuter = pr*2.2;
+    const grad = ctx.createRadialGradient(0,0,rInner,0,0,rOuter);
+    grad.addColorStop(0, 'rgba(220,200,160,0)'); grad.addColorStop(0.35, 'rgba(232,214,178,0.6)');
+    grad.addColorStop(0.55, 'rgba(200,178,138,0.28)'); grad.addColorStop(0.7, 'rgba(228,208,170,0.55)'); grad.addColorStop(1, 'rgba(200,180,140,0)');
+    ctx.beginPath(); ctx.arc(0,0,rOuter,0,Math.PI*2,false); ctx.arc(0,0,rInner,0,Math.PI*2,true);
+    ctx.fillStyle = grad; ctx.fill('evenodd');
+    ctx.restore();
+  }
+  function drawSunFlare(sp, pr){
+    ctx.save(); ctx.translate(sp.sx, sp.sy);
+    const rays = 8;
+    for (let i=0;i<rays;i++){
+      const a = (i/rays)*Math.PI*2 + 0.3;
+      const len = pr*(2.0 + (i%3)*0.35);
+      const grad = ctx.createLinearGradient(0,0,Math.cos(a)*len, Math.sin(a)*len);
+      grad.addColorStop(0,'rgba(255,220,150,0.22)'); grad.addColorStop(1,'rgba(255,220,150,0)');
+      ctx.strokeStyle = grad; ctx.lineWidth = pr*0.12;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*len, Math.sin(a)*len); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawBody(key, sp, isDominant){
+    const b = BODIES[key];
+    let pr = b.R*scale;
+    pr = Math.max(pr, isDominant ? 4 : 2.2);
+    pr = Math.min(pr, isDominant ? 260 : 70);
+
+    if (isDominant){
+      const glowR = pr*2.2;
+      const glow = ctx.createRadialGradient(sp.sx, sp.sy, pr*0.6, sp.sx, sp.sy, glowR);
+      glow.addColorStop(0, key==='sun' ? 'rgba(255,210,120,0.35)' : 'rgba(120,160,255,0.18)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(sp.sx, sp.sy, glowR, 0, Math.PI*2); ctx.fill();
+      if (key === 'sun') drawSunFlare(sp, pr);
+    }
+    if (key === 'saturn' && pr > 5) drawSaturnRings(sp, pr);
+
+    const body = ctx.createRadialGradient(sp.sx - pr*0.35, sp.sy - pr*0.35, pr*0.1, sp.sx, sp.sy, pr);
+    if (key === 'sun'){ body.addColorStop(0, '#fff6de'); body.addColorStop(0.55, '#ffd27a'); body.addColorStop(1, b.c2); }
+    else { body.addColorStop(0, b.c1); body.addColorStop(1, b.c2); }
+    ctx.beginPath(); ctx.fillStyle = body; ctx.arc(sp.sx, sp.sy, pr, 0, Math.PI*2); ctx.fill();
+
+    if (key !== 'sun') decorateBody(key, sp, pr);
+    if (isDominant){
+      ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+      ctx.arc(sp.sx, sp.sy, pr, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.font = (isDominant ? '11px ' : '10px ') + "'SFMono-Regular','Consolas',monospace";
+    ctx.fillStyle = isDominant ? 'rgba(238,241,248,0.85)' : 'rgba(124,136,168,0.8)';
+    ctx.textAlign = 'left';
+    ctx.fillText(b.name, sp.sx + pr + 5, sp.sy + 3);
+  }
+
+  // ===== Render =====
+  function render(){
+    const w = canvas.width / dpr(), h = canvas.height / dpr();
+    ctx.clearRect(0,0,w,h);
+    ctx.drawImage(starCanvas, 0, 0, w, h);
+    updateTimescaleRange();
+
+    const info = computeDesiredView();
+    const dominantKey = info.dominantKey, originPos = info.originPos;
+
+    if (autoTrack){
+      scaleTarget = fitScale(info.desiredView) * zoomFactor;
+      if (manualZoom){ scale = scaleTarget; manualZoom = false; }
+      else { scale += (scaleTarget - scale) * 0.08; }
+    } else {
+      if (manualBaseScale == null) manualBaseScale = scale/zoomFactor;
+      scale = manualBaseScale * zoomFactor;
+    }
+
+    function toScreen(x,y){
+      return { sx: w/2 + (x-originPos.x)*scale + panOffsetPx.x, sy: h/2 - (y-originPos.y)*scale + panOffsetPx.y };
+    }
+
+    if (dominantKey === 'sun'){
+      BODY_ORDER.forEach(key=>{
+        const bb = BODIES[key];
+        if (bb.orbitsAround === 'sun'){
+          const c = toScreen(0,0);
+          const rr = bb.a*scale;
+          if (rr > 4 && rr < Math.max(w,h)*3){
+            ctx.beginPath(); ctx.setLineDash([2,6]); ctx.strokeStyle = 'rgba(124,136,168,0.22)'; ctx.lineWidth = 1;
+            ctx.arc(c.sx, c.sy, rr, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+          }
+        }
+      });
+    }
+
+    const domR = BODIES[dominantKey].R;
+    if (sim && dominantKey === sim.originBody && sim.trail.length>0){
+      const r0 = BODIES[currentPlanet].R + (+el.h0.value)*1000;
+      const c = toScreen(originPos.x, originPos.y);
+      const r0r = r0*scale;
+      const pr0 = Math.max(domR*scale, 3);
+      if (r0r - pr0 > 2){
+        ctx.beginPath(); ctx.setLineDash([3,6]); ctx.strokeStyle = 'rgba(124,136,168,0.35)'; ctx.lineWidth = 1;
+        ctx.arc(c.sx, c.sy, r0r, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+
+    // missile target marker on launch planet surface
+    if (simMode === 'missile' && sim && dominantKey === sim.originBody){
+      const refDir = normalize(bodyPos(sim.originBody, sim.time));
+      const targetAng = (+el.missileTarget.value)*Math.PI/180;
+      const dir = rotate(refDir, -targetAng);
+      const c = toScreen(originPos.x + dir.x*domR, originPos.y + dir.y*domR);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(177,138,255,0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(c.sx, c.sy, 8, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.sx-12,c.sy); ctx.lineTo(c.sx+12,c.sy); ctx.moveTo(c.sx,c.sy-12); ctx.lineTo(c.sx,c.sy+12); ctx.stroke();
+      ctx.restore();
+    }
+
+    BODY_ORDER.forEach(key=>{
+      if (key === dominantKey) return;
+      const p = bodyPos(key, sim ? sim.time : 0);
+      const sp = toScreen(p.x, p.y);
+      if (sp.sx < -200 || sp.sx > w+200 || sp.sy < -200 || sp.sy > h+200) return;
+      drawBody(key, sp, false);
+    });
+    drawBody(dominantKey, toScreen(originPos.x, originPos.y), true);
+
+    if (!sim) return;
+
+    if (sim.trail.length > 1){
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      const n = sim.trail.length;
+      const step = Math.max(1, Math.floor(n/1500));
+      ctx.beginPath();
+      for (let i=0; i<n; i+=step){
+        const p = toScreen(sim.trail[i].x, sim.trail[i].y);
+        if (i===0) ctx.moveTo(p.sx,p.sy); else ctx.lineTo(p.sx,p.sy);
+      }
+      const last = toScreen(sim.trail[n-1].x, sim.trail[n-1].y);
+      ctx.lineTo(last.sx, last.sy);
+      ctx.strokeStyle = 'rgba(94,203,232,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
+    }
+
+    const pos = toScreen(sim.x, sim.y);
+    const heading = Math.atan2(-sim.vy, sim.vx);
+
+    if (sim.crashed){
+      ctx.save(); ctx.translate(pos.sx, pos.sy);
+      ctx.fillStyle = 'rgba(255,84,112,0.9)';
+      ctx.beginPath(); ctx.arc(0,0,6,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,84,112,0.6)'; ctx.lineWidth = 2;
+      for (let k=0;k<5;k++){
+        const a = k*(Math.PI*2/5);
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*6, Math.sin(a)*6); ctx.lineTo(Math.cos(a)*13, Math.sin(a)*13); ctx.stroke();
+      }
+      ctx.restore();
+    } else if (sim.landed){
+      ctx.save(); ctx.translate(pos.sx, pos.sy);
+      ctx.fillStyle = 'rgba(126,231,135,0.9)';
+      ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(126,231,135,0.55)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(0,-16); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(8,-12); ctx.lineTo(0,-9); ctx.closePath();
+      ctx.fillStyle = 'rgba(126,231,135,0.85)'; ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.save(); ctx.translate(pos.sx, pos.sy); ctx.rotate(heading);
+      const color = sim.hasEscapedOrigin ? '#7ee787' : '#ffa94d';
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(-6,4.5); ctx.lineTo(-3,0); ctx.lineTo(-6,-4.5); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.arc(0,0,1.6,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+      if (sim.running){
+        ctx.beginPath(); ctx.strokeStyle = 'rgba(255,169,77,0.35)'; ctx.lineWidth = 1;
+        ctx.arc(pos.sx, pos.sy, 10, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+
+  resizeCanvas();
+  resetSim();
+})();
+</script>
+</body>
+</html>
